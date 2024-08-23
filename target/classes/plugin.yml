@@ -1,0 +1,48 @@
+name: SpeedItem
+version: '1.0-SNAPSHOT'
+main: me.crunchycars.speedItem.myPlugins
+api-version: '1.19'
+load: STARTUP
+commands:
+  givepiggylauncher:
+    description: Gives the player a Piggy Launcher.
+    usage: /givepiggylauncher
+    permission: piggylauncher.give
+    permission-message: "You do not have permission to use this command."
+  giveboogersugar:
+    description: Gives the player Booger Sugar.
+    usage: /giveboogersugar
+    permission: boogersugar.give
+    permission-message: "You do not have permission to use this command."
+  givedamageamplifier:
+    description: Gives the player a Damage Amplifier.
+    usage: /givedamageamplifier
+    permission: damageamplifier.give
+    permission-message: "You do not have permission to use this command."
+  giveteargas:
+    description: Gives the player Tear Gas.
+    usage: /giveteargas
+    permission: teargas.give
+    permission-message: "You do not have permission to use this command."
+  givemolotov:
+    description: Gives the player a Molotov.
+    usage: /givemolotov
+    permission: molotov.give
+    permission-message: "You do not have permission to use this command."
+
+permissions:
+  piggylauncher.give:
+    description: Allows the player to give the Piggy Launcher.
+    default: op
+  boogersugar.give:
+    description: Allows the player to give the Booger Sugar.
+    default: op
+  damageamplifier.give:
+    description: Allows the player to give the Damage Amplifier.
+    default: op
+  teargas.give:
+    description: Allows the player to give the Tear Gas.
+    default: op
+  molotov.give:
+    description: Allows the player to give the Molotov.
+    default: op
