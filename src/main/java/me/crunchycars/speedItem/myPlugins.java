@@ -1,32 +1,27 @@
 package me.crunchycars.speedItem;
 
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
-import org.bukkit.entity.Item;
-import org.bukkit.entity.Player;
+import org.bukkit.*;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.block.Action;
-import org.bukkit.NamespacedKey;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Pig;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public final class myPlugins extends JavaPlugin implements Listener {
     private final NamespacedKey piggyLauncherKey = new NamespacedKey(this, "piggy_launcher");
@@ -38,15 +33,197 @@ public final class myPlugins extends JavaPlugin implements Listener {
     private final NamespacedKey molotovKey = new NamespacedKey(this, "molotov");
 
 
+    private final List<Region> regions = new ArrayList<>(); // List to store multiple regions
+    private final Map<UUID, BukkitRunnable> activeCountdowns = new HashMap<>(); // To track active countdowns for players
+    private final Map<UUID, Region> playerRegionMap = new HashMap<>(); // To track the region each player is in
+    private final Map<UUID, Boolean> playerNotifiedMap = new HashMap<>(); // To track if the player has been notified about a broken block
+
+
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ooga booga has been enabled!");
+        regions.add(new Region(new Location(Bukkit.getWorld("icycaverns"), 12, 40, 4), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("icycaverns"), 89, 61, -142), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("icycaverns"), 173, 64, 163), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("sahara"), 115, 124, 442), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("sahara"), 292, 114, 315), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("sahara"), 486, 120, 419), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("kuroko"), -123, 4, 118), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("kuroko"), 76, 4, -104), 10, 10, Material.GLASS, this));
+        regions.add(new Region(new Location(Bukkit.getWorld("kuroko"), 122, 4, 37), 10, 10, Material.GLASS, this));
+
+        // Add more regions as needed
     }
 
     @Override
     public void onDisable() {
         getLogger().info("ooga booga has been disabled!");
+    }
+
+    //////////////CAP POINT PLUGIN//////////////
+
+    @EventHandler
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+
+        boolean playerInAnyRegion = false;
+
+        for (Region region : regions) {
+            if (region.isPlayerInRegion(player)) {
+                playerInAnyRegion = true;
+
+                // If the player is entering the region for the first time, start the countdown and send a message
+                if (!playerRegionMap.containsKey(playerId) || playerRegionMap.get(playerId) != region) {
+                    if (!region.isBlockBroken()) { // Only start countdown if the block is not broken
+                        playerRegionMap.put(playerId, region);
+                        playerNotifiedMap.remove(playerId); // Reset notification status
+                        startCountdown(player, region);
+                        player.sendMessage("You have entered a region. Stay here for 2 minutes!");
+                    } else {
+                        if (!playerNotifiedMap.getOrDefault(playerId, false)) { // Check if the player has already been notified
+                            player.sendMessage("The block is already broken. Wait for it to restore.");
+                            playerNotifiedMap.put(playerId, true); // Mark the player as notified
+                        }
+                    }
+                }
+                break; // No need to check further once the player is in a region
+            }
+        }
+
+        // If the player is no longer in any region, remove them from the maps and stop the countdown
+        if (!playerInAnyRegion && playerRegionMap.containsKey(playerId)) {
+            stopCountdown(playerId);
+            playerRegionMap.remove(playerId);
+            playerNotifiedMap.remove(playerId);
+            player.sendMessage("You left the region. The countdown has been stopped.");
+        }
+    }
+
+
+    private void startCountdown(Player player, Region region) {
+        UUID playerId = player.getUniqueId();
+
+        // Launch a red firework to indicate the countdown start
+        region.launchFireworks(region.getCenter(), Color.RED, 3); // Launch 5 fireworks
+
+        BukkitRunnable countdown = new BukkitRunnable() {
+            int timeLeft = region.getCountdownTime();
+
+            @Override
+            public void run() {
+                if (timeLeft <= 0) {
+                    region.breakAndPlaceBlock();
+                    player.sendMessage("You have successfully stayed within the region for 2 minutes. The block has been broken and will be placed back in 30 seconds!");
+                    stopCountdown(playerId);
+
+                    // Launch a green firework to indicate the site is open
+                    region.launchFireworks(region.getCenter(), Color.GREEN, 5); // Launch 5 fireworks
+                } else if (!region.isPlayerInRegion(player)) {
+                    player.sendMessage("You left the region. The countdown has been stopped.");
+                    stopCountdown(playerId);
+                } else {
+                    timeLeft--;
+                }
+            }
+        };
+
+        countdown.runTaskTimer(this, 0, 20); // Schedule task to run every second (20 ticks)
+        activeCountdowns.put(playerId, countdown);
+    }
+
+
+
+    private void stopCountdown(UUID playerId) {
+        if (activeCountdowns.containsKey(playerId)) {
+            activeCountdowns.get(playerId).cancel();
+            activeCountdowns.remove(playerId);
+        }
+    }
+
+    private static class Region {
+        private final Location center;
+        private final int radius;
+        private final int countdownTime;
+        private final Material blockMaterial;
+        private final JavaPlugin plugin;
+        private boolean blockBroken = false;
+
+        public Region(Location center, int radius, int countdownTime, Material blockMaterial, JavaPlugin plugin) {
+            this.center = center;
+            this.radius = radius;
+            this.countdownTime = countdownTime;
+            this.blockMaterial = blockMaterial;
+            this.plugin = plugin;
+        }
+
+        public boolean isPlayerInRegion(Player player) {
+            Location loc = player.getLocation();
+            return Math.abs(loc.getX() - center.getX()) <= radius && Math.abs(loc.getZ() - center.getZ()) <= radius;
+        }
+
+        public int getCountdownTime() {
+            return countdownTime;
+        }
+
+        public boolean isBlockBroken() {
+            return blockBroken;
+        }
+
+        public Location getCenter() {
+            return center;
+        }
+
+        public void breakAndPlaceBlock() {
+            Block centerBlock = center.getBlock();
+
+            // Break the block
+            centerBlock.setType(Material.AIR);
+            blockBroken = true; // Mark the block as broken
+
+            // Debugging output to ensure this code is running
+            plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to AIR.");
+
+            // Schedule to place the block back after 30 seconds
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    // Re-fetch the block at the location to ensure we are working with the correct reference
+                    Block blockToPlace = center.getBlock();
+                    blockToPlace.setType(blockMaterial); // Place the block back with the specified material
+                    blockBroken = false; // Mark the block as restored
+
+                    // Debugging output to confirm block placement
+                    plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to " + blockMaterial.name() + ".");
+                }
+            }.runTaskLater(plugin, 600L); // 600 ticks = 30 seconds
+        }
+        public void launchFireworks(Location location, Color color, int count) {
+            for (int i = 0; i < count; i++) {
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        Location fireworkLocation = location.clone().add(0.5, 1, 0.5);
+                        Firework firework = fireworkLocation.getWorld().spawn(fireworkLocation, Firework.class);
+                        FireworkMeta meta = firework.getFireworkMeta();
+
+                        // Add multiple effects to the firework
+                        for (int j = 0; j < 5; j++) {
+                            meta.addEffect(FireworkEffect.builder()
+                                    .withColor(color)
+                                    .with(FireworkEffect.Type.BALL)
+                                    .withFlicker()
+                                    .withTrail()
+                                    .build());
+                        }
+
+                        meta.setPower(2); // Increase the power to make the firework shoot higher
+                        firework.setFireworkMeta(meta);
+                    }
+                }.runTaskLater(plugin, i * 10L); // Delay each firework by 10 ticks
+            }
+        }
     }
 
     @EventHandler
