@@ -44,22 +44,40 @@ public final class myPlugins extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ooga booga has been enabled!");
 
+        //sahara
         UUID worldUUID1 = UUID.fromString("ab30c279-7fdd-4ba9-83b8-8cf4644502b6");
         Location location1 = new Location(Bukkit.getWorld(worldUUID1), 115, 124, 442);
-        regions.add(new Region(worldUUID1, location1, 10, 10, Material.GLASS, this));
+        Location location2 = new Location(Bukkit.getWorld(worldUUID1), 486, 120, 419);
+        Location location3 = new Location(Bukkit.getWorld(worldUUID1), 292, 115, 315);
 
+        regions.add(new Region(worldUUID1, location1, 10, 10, Material.RED_STAINED_GLASS, this));
+        regions.add(new Region(worldUUID1, location2, 10, 10, Material.RED_STAINED_GLASS, this));
+        regions.add(new Region(worldUUID1, location3, 10, 10, Material.RED_STAINED_GLASS, this));
+
+        //caverns
         UUID worldUUID2 = UUID.fromString("a84b8efb-bb68-49f1-9074-6d3d3384f561");
-        Location location2 = new Location(Bukkit.getWorld(worldUUID2), 12, 40, 4);
-        regions.add(new Region(worldUUID2, location2, 10, 10, Material.GLASS, this));
+        Location location4 = new Location(Bukkit.getWorld(worldUUID2), 12, 40, 4);
+        Location location5 = new Location(Bukkit.getWorld(worldUUID2), 173, 64, 163);
+        Location location6 = new Location(Bukkit.getWorld(worldUUID2), 89, 62, -142);
 
+        regions.add(new Region(worldUUID2, location4, 10, 10, Material.RED_STAINED_GLASS, this));
+        regions.add(new Region(worldUUID2, location5, 10, 10, Material.RED_STAINED_GLASS, this));
+        regions.add(new Region(worldUUID2, location6, 10, 10, Material.RED_STAINED_GLASS, this));
+
+
+        //kuroko
         UUID worldUUID3 = UUID.fromString("f6294f42-24f7-4f6c-984f-f37b75c0254e");
-        Location location3 = new Location(Bukkit.getWorld(worldUUID3), -123, 4, 118);
-        regions.add(new Region(worldUUID3, location3, 10, 10, Material.GLASS, this));
+        Location location7 = new Location(Bukkit.getWorld(worldUUID3), 122, 4, 37);
+        Location location8 = new Location(Bukkit.getWorld(worldUUID3), -123, 4, 118);
+        Location location9 = new Location(Bukkit.getWorld(worldUUID3), 76, 4, -104);
+        regions.add(new Region(worldUUID3, location7, 10, 10, Material.RED_STAINED_GLASS, this));
+        regions.add(new Region(worldUUID3, location8, 10, 10, Material.RED_STAINED_GLASS, this));
+        regions.add(new Region(worldUUID3, location9, 10, 10, Material.RED_STAINED_GLASS, this));
 
         //test
         UUID worldUUID4 = UUID.fromString("6d8fffa1-5479-4a51-83a8-6d1cc5c58f83");
-        Location location4 = new Location(Bukkit.getWorld(worldUUID4), 183, 63, 91);
-        regions.add(new Region(worldUUID4, location4, 10, 10, Material.GLASS, this));
+        Location location10 = new Location(Bukkit.getWorld(worldUUID4), 183, 63, 91);
+        regions.add(new Region(worldUUID4, location10, 10, 10, Material.GLASS, this));
 
     }
 
@@ -96,7 +114,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
                         bossBar.setVisible(true);
 
                         if (!playerNotifiedMap.getOrDefault(playerId, false)) {
-                            player.sendMessage("§c§l(!) §cExtraction zone is already open.");
+                            player.sendMessage("§2§l(!) §2Extraction zone is already open.");
                             playerNotifiedMap.put(playerId, true);
                         }
                     }
@@ -127,12 +145,12 @@ public final class myPlugins extends JavaPlugin implements Listener {
         UUID playerId = player.getUniqueId();
 
         if (isSiteOpen) {
-            player.sendMessage("§c§l(!) §cThe extraction zone is already open.");
+            player.sendMessage("§2§l(!) §2The extraction zone is already open.");
             return;
         }
 
         if (region.isBlockBroken()) {
-            player.sendMessage("§c§l(!) §cThe extraction zone is already open.");
+            player.sendMessage("§2§l(!) §2The extraction zone is already open.");
             return;
         }
 
@@ -172,7 +190,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
                         if (playerRegionMap.get(uuid).equals(region)) {
                             Player regionPlayer = Bukkit.getPlayer(uuid);
                             if (regionPlayer != null) {
-                                regionPlayer.sendMessage("The extraction site is now open!");
+                                regionPlayer.sendMessage("§a§l(!) §aThe extraction site is now open!");
                             }
                         }
                     }
@@ -318,7 +336,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
                 }
             }.runTaskLater(plugin, 600L); // 600 ticks = 30 seconds
         }
-        
+
         public void launchFireworks(Location location, Color color, int count) {
             for (int i = 0; i < count; i++) {
                 new BukkitRunnable() {
