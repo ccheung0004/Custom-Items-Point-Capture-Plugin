@@ -86,6 +86,15 @@ public final class myPlugins extends JavaPlugin implements Listener {
                         startCountdown(player, region);
                         player.sendMessage("§c§l(!) §cCapturing extraction zone. Stay in the zone for 1.5 minutes to open it.");
                     } else {
+                        // If the block is already broken (site is open), show the open boss bar
+                        playerRegionMap.put(playerId, region);
+                        BossBar bossBar = region.getBossBar();
+                        bossBar.addPlayer(player);
+                        bossBar.setTitle("Extraction Site Open");
+                        bossBar.setColor(BarColor.GREEN);
+                        bossBar.setProgress(1.0);
+                        bossBar.setVisible(true);
+
                         if (!playerNotifiedMap.getOrDefault(playerId, false)) {
                             player.sendMessage("§c§l(!) §cExtraction zone is already open.");
                             playerNotifiedMap.put(playerId, true);
@@ -111,6 +120,9 @@ public final class myPlugins extends JavaPlugin implements Listener {
         }
     }
 
+
+
+
     private void startCountdown(Player player, Region region) {
         UUID playerId = player.getUniqueId();
 
@@ -123,6 +135,9 @@ public final class myPlugins extends JavaPlugin implements Listener {
             player.sendMessage("§c§l(!) §cThe extraction zone is already open.");
             return;
         }
+
+        // Stop any existing countdown to avoid overlap
+        stopCountdown(playerId);
 
         playerTimers.put(playerId, region.getCountdownTime());
         BossBar bossBar = region.getBossBar();
@@ -157,7 +172,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
                         if (playerRegionMap.get(uuid).equals(region)) {
                             Player regionPlayer = Bukkit.getPlayer(uuid);
                             if (regionPlayer != null) {
-                                regionPlayer.sendMessage("§a§l(!) §aThe extraction site is now open!");
+                                regionPlayer.sendMessage("The extraction site is now open!");
                             }
                         }
                     }
@@ -179,30 +194,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
     }
 
 
-    private void updateBossBarsForAllPlayers(Region region) {
-        UUID lowestTimerPlayer = getPlayerWithLowestTimer();
-        BossBar bossBar = region.getBossBar();
 
-        if (lowestTimerPlayer != null) {
-            Player lowestTimerPlayerEntity = Bukkit.getPlayer(lowestTimerPlayer);
-            if (lowestTimerPlayerEntity != null) {
-                bossBar.setTitle("Extraction Countdown: " + playerTimers.get(lowestTimerPlayer) + " seconds");
-                bossBar.setProgress(playerTimers.get(lowestTimerPlayer) / (double) region.getCountdownTime());
-
-                for (UUID uuid : playerRegionMap.keySet()) {
-                    if (playerRegionMap.get(uuid).equals(region)) {
-                        Player regionPlayer = Bukkit.getPlayer(uuid);
-                        if (regionPlayer != null) {
-                            bossBar.addPlayer(regionPlayer);
-                        }
-                    }
-                }
-                bossBar.setVisible(true);
-            }
-        } else {
-            bossBar.setVisible(false);
-        }
-    }
 
     private UUID getPlayerWithLowestTimer() {
         return playerTimers.entrySet()
@@ -312,43 +304,21 @@ public final class myPlugins extends JavaPlugin implements Listener {
                     blockBroken = false;
 
                     plugin.resetExtractionSite();
-                    updateBossBarsForAllPlayers();
 
-                    // Check if any players are in the region when the block is placed back
+                    // Update boss bars and restart countdowns for players still in the region
                     for (UUID playerId : plugin.playerRegionMap.keySet()) {
                         Player player = Bukkit.getPlayer(playerId);
                         if (player != null && isPlayerInRegion(player)) {
-                            // Restart the countdown for the player in the region
                             plugin.startCountdown(player, Region.this);
                             player.sendMessage("§c§l(!) §cExtraction zone closed. Timer has been reset.");
-
                         }
                     }
 
                     plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to " + blockMaterial.name() + ".");
                 }
-            }.runTaskLater(plugin, 600L);
+            }.runTaskLater(plugin, 600L); // 600 ticks = 30 seconds
         }
-
-
-
-
-        private void updateBossBarsForAllPlayers() {
-            UUID lowestTimerPlayer = plugin.getPlayerWithLowestTimer();
-            if (lowestTimerPlayer != null) {
-                Player lowestTimerPlayerEntity = Bukkit.getPlayer(lowestTimerPlayer);
-                if (lowestTimerPlayerEntity != null) {
-                    bossBar.setTitle("Extraction Countdown: " + plugin.playerTimers.get(lowestTimerPlayer) + " seconds");
-                    bossBar.setProgress(plugin.playerTimers.get(lowestTimerPlayer) / (double) countdownTime);
-                    bossBar.setVisible(true);
-                }
-            } else {
-                bossBar.setVisible(false);
-            }
-        }
-
-
-
+        
         public void launchFireworks(Location location, Color color, int count) {
             for (int i = 0; i < count; i++) {
                 new BukkitRunnable() {
