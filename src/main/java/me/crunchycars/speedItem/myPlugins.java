@@ -3,6 +3,9 @@ package me.crunchycars.speedItem;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -62,20 +65,19 @@ public final class myPlugins extends JavaPlugin implements Listener {
     }
 
     //////////////CAP POINT PLUGIN//////////////
-
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
-
         boolean playerInAnyRegion = false;
+        Region currentRegion = playerRegionMap.get(playerId);
 
         for (Region region : regions) {
             if (region.isPlayerInRegion(player)) {
                 playerInAnyRegion = true;
 
                 // If the player is entering the region for the first time, start the countdown and send a message
-                if (!playerRegionMap.containsKey(playerId) || playerRegionMap.get(playerId) != region) {
+                if (currentRegion == null || currentRegion != region) {
                     if (!region.isBlockBroken()) { // Only start countdown if the block is not broken
                         playerRegionMap.put(playerId, region);
                         playerNotifiedMap.remove(playerId); // Reset notification status
@@ -93,20 +95,37 @@ public final class myPlugins extends JavaPlugin implements Listener {
         }
 
         // If the player is no longer in any region, remove them from the maps and stop the countdown
-        if (!playerInAnyRegion && playerRegionMap.containsKey(playerId)) {
+        if (!playerInAnyRegion && currentRegion != null) {
             stopCountdown(playerId);
             playerRegionMap.remove(playerId);
             playerNotifiedMap.remove(playerId);
+
+            // Remove the player from the BossBar and hide it if no players are left
+            BossBar bossBar = currentRegion.getBossBar();
+            bossBar.removePlayer(player);
+            if (bossBar.getPlayers().isEmpty()) {
+                bossBar.setVisible(false);
+            }
+
             player.sendMessage("You left the region. The countdown has been stopped.");
         }
     }
 
 
+
     private void startCountdown(Player player, Region region) {
         UUID playerId = player.getUniqueId();
+        BossBar bossBar = region.getBossBar();
 
-        // Launch a red firework to indicate the countdown start
-        region.launchFireworks(region.getCenter(), Color.RED, 3); // Launch 5 fireworks
+        // Reset the BossBar for a new countdown
+        bossBar.setTitle("Extraction Countdown");
+        bossBar.setColor(BarColor.RED);
+        bossBar.setProgress(1.0);
+        bossBar.addPlayer(player); // Add the player to the BossBar if not already added
+        bossBar.setVisible(true);
+
+        // Launch a series of red fireworks to indicate the countdown start
+        region.launchFireworks(region.getCenter(), Color.RED, 5); // Launch 5 fireworks
 
         BukkitRunnable countdown = new BukkitRunnable() {
             int timeLeft = region.getCountdownTime();
@@ -114,16 +133,21 @@ public final class myPlugins extends JavaPlugin implements Listener {
             @Override
             public void run() {
                 if (timeLeft <= 0) {
-                    region.breakAndPlaceBlock();
+                    region.breakAndPlaceBlock(); // Call the method to break the block and handle the BossBar
                     player.sendMessage("You have successfully stayed within the region for 2 minutes. The block has been broken and will be placed back in 30 seconds!");
-                    stopCountdown(playerId);
 
-                    // Launch a green firework to indicate the site is open
-                    region.launchFireworks(region.getCenter(), Color.GREEN, 5); // Launch 5 fireworks
-                } else if (!region.isPlayerInRegion(player)) {
-                    player.sendMessage("You left the region. The countdown has been stopped.");
-                    stopCountdown(playerId);
+                    // Update the BossBar to indicate the extraction site is open
+                    bossBar.setTitle("Extraction Site Open");
+                    bossBar.setColor(BarColor.GREEN);
+                    bossBar.setProgress(1.0);
+
+                    this.cancel();
                 } else {
+                    // Update BossBar progress
+                    double progress = timeLeft / (double) region.getCountdownTime();
+                    bossBar.setProgress(progress);
+                    bossBar.setTitle("Extraction Countdown: " + timeLeft + " seconds");
+
                     timeLeft--;
                 }
             }
@@ -142,13 +166,14 @@ public final class myPlugins extends JavaPlugin implements Listener {
         }
     }
 
-    private static class Region {
+    public static class Region {
         private final Location center;
         private final int radius;
         private final int countdownTime;
         private final Material blockMaterial;
         private final JavaPlugin plugin;
         private boolean blockBroken = false;
+        private BossBar bossBar;
 
         public Region(Location center, int radius, int countdownTime, Material blockMaterial, JavaPlugin plugin) {
             this.center = center;
@@ -156,6 +181,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
             this.countdownTime = countdownTime;
             this.blockMaterial = blockMaterial;
             this.plugin = plugin;
+            this.bossBar = Bukkit.createBossBar("Extraction Countdown", BarColor.RED, BarStyle.SOLID);
         }
 
         public boolean isPlayerInRegion(Player player) {
@@ -175,12 +201,22 @@ public final class myPlugins extends JavaPlugin implements Listener {
             return center;
         }
 
+        public BossBar getBossBar() {
+            return bossBar;
+        }
+
         public void breakAndPlaceBlock() {
             Block centerBlock = center.getBlock();
 
             // Break the block
             centerBlock.setType(Material.AIR);
             blockBroken = true; // Mark the block as broken
+
+            // Update the BossBar to indicate the extraction site is open
+            bossBar.setTitle("Extraction Site Open");
+            bossBar.setColor(BarColor.GREEN);
+            bossBar.setProgress(1.0);
+            bossBar.setVisible(true);
 
             // Debugging output to ensure this code is running
             plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to AIR.");
@@ -194,11 +230,18 @@ public final class myPlugins extends JavaPlugin implements Listener {
                     blockToPlace.setType(blockMaterial); // Place the block back with the specified material
                     blockBroken = false; // Mark the block as restored
 
+                    // Reset the BossBar for the next countdown
+                    bossBar.setTitle("Extraction Countdown");
+                    bossBar.setColor(BarColor.RED);
+                    bossBar.setProgress(1.0);
+                    bossBar.setVisible(false);
+
                     // Debugging output to confirm block placement
                     plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to " + blockMaterial.name() + ".");
                 }
             }.runTaskLater(plugin, 600L); // 600 ticks = 30 seconds
         }
+
         public void launchFireworks(Location location, Color color, int count) {
             for (int i = 0; i < count; i++) {
                 new BukkitRunnable() {
