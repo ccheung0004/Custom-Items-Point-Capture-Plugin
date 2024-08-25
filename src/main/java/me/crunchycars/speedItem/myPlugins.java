@@ -1,8 +1,6 @@
 package me.crunchycars.speedItem;
-
 import org.bukkit.*;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
@@ -28,35 +26,41 @@ import java.util.*;
 
 public final class myPlugins extends JavaPlugin implements Listener {
     private final NamespacedKey piggyLauncherKey = new NamespacedKey(this, "piggy_launcher");
-    private final NamespacedKey usageKey = new NamespacedKey(this, "usage_count"); // Correct declaration of usageKey
+    private final NamespacedKey usageKey = new NamespacedKey(this, "usage_count");
     private final NamespacedKey tearGasKey = new NamespacedKey(this, "tear_gas");
-    private final Map<UUID, Long> cooldowns = new HashMap<>(); // Map to store player cooldowns
-    private final long cooldownTime = 5000; // Cooldown time in milliseconds (e.g., 5000ms = 5 seconds)
-    private final int maxUses = 3; // Maximum number of uses before the bow breaks
+    private final Map<UUID, Long> cooldowns = new HashMap<>();
+    private final long cooldownTime = 5000;
+    private final int maxUses = 3;
     private final NamespacedKey molotovKey = new NamespacedKey(this, "molotov");
-
-
-    private final List<Region> regions = new ArrayList<>(); // List to store multiple regions
-    private final Map<UUID, BukkitRunnable> activeCountdowns = new HashMap<>(); // To track active countdowns for players
-    private final Map<UUID, Region> playerRegionMap = new HashMap<>(); // To track the region each player is in
-    private final Map<UUID, Boolean> playerNotifiedMap = new HashMap<>(); // To track if the player has been notified about a broken block
-
+    private final Map<UUID, Integer> playerTimers = new HashMap<>();
+    private final List<Region> regions = new ArrayList<>();
+    private final Map<UUID, BukkitRunnable> activeCountdowns = new HashMap<>();
+    private final Map<UUID, Region> playerRegionMap = new HashMap<>();
+    private final Map<UUID, Boolean> playerNotifiedMap = new HashMap<>();
+    private boolean isSiteOpen = false;
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ooga booga has been enabled!");
-        regions.add(new Region(new Location(Bukkit.getWorld("icycaverns"), 12, 40, 4), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("icycaverns"), 89, 61, -142), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("icycaverns"), 173, 64, 163), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("sahara"), 115, 124, 442), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("sahara"), 292, 114, 315), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("sahara"), 486, 120, 419), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("kuroko"), -123, 4, 118), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("kuroko"), 76, 4, -104), 10, 10, Material.GLASS, this));
-        regions.add(new Region(new Location(Bukkit.getWorld("kuroko"), 122, 4, 37), 10, 10, Material.GLASS, this));
 
-        // Add more regions as needed
+        UUID worldUUID1 = UUID.fromString("ab30c279-7fdd-4ba9-83b8-8cf4644502b6");
+        Location location1 = new Location(Bukkit.getWorld(worldUUID1), 115, 124, 442);
+        regions.add(new Region(worldUUID1, location1, 10, 10, Material.GLASS, this));
+
+        UUID worldUUID2 = UUID.fromString("a84b8efb-bb68-49f1-9074-6d3d3384f561");
+        Location location2 = new Location(Bukkit.getWorld(worldUUID2), 12, 40, 4);
+        regions.add(new Region(worldUUID2, location2, 10, 10, Material.GLASS, this));
+
+        UUID worldUUID3 = UUID.fromString("f6294f42-24f7-4f6c-984f-f37b75c0254e");
+        Location location3 = new Location(Bukkit.getWorld(worldUUID3), -123, 4, 118);
+        regions.add(new Region(worldUUID3, location3, 10, 10, Material.GLASS, this));
+
+        //test
+        UUID worldUUID4 = UUID.fromString("6d8fffa1-5479-4a51-83a8-6d1cc5c58f83");
+        Location location4 = new Location(Bukkit.getWorld(worldUUID4), 183, 63, 91);
+        regions.add(new Region(worldUUID4, location4, 10, 10, Material.GLASS, this));
+
     }
 
     @Override
@@ -64,7 +68,6 @@ public final class myPlugins extends JavaPlugin implements Listener {
         getLogger().info("ooga booga has been disabled!");
     }
 
-    //////////////CAP POINT PLUGIN//////////////
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
@@ -76,107 +79,188 @@ public final class myPlugins extends JavaPlugin implements Listener {
             if (region.isPlayerInRegion(player)) {
                 playerInAnyRegion = true;
 
-                // If the player is entering the region for the first time, start the countdown and send a message
                 if (currentRegion == null || currentRegion != region) {
-                    if (!region.isBlockBroken()) { // Only start countdown if the block is not broken
+                    if (!region.isBlockBroken()) {
                         playerRegionMap.put(playerId, region);
-                        playerNotifiedMap.remove(playerId); // Reset notification status
+                        playerNotifiedMap.remove(playerId);
                         startCountdown(player, region);
-                        player.sendMessage("You have entered a region. Stay here for 2 minutes!");
+                        player.sendMessage("§c§l(!) §cCapturing extraction zone. Stay in the zone for 1.5 minutes to open it.");
                     } else {
-                        if (!playerNotifiedMap.getOrDefault(playerId, false)) { // Check if the player has already been notified
-                            player.sendMessage("The block is already broken. Wait for it to restore.");
-                            playerNotifiedMap.put(playerId, true); // Mark the player as notified
+                        if (!playerNotifiedMap.getOrDefault(playerId, false)) {
+                            player.sendMessage("§c§l(!) §cExtraction zone is already open.");
+                            playerNotifiedMap.put(playerId, true);
                         }
                     }
                 }
-                break; // No need to check further once the player is in a region
+                break;
             }
         }
 
-        // If the player is no longer in any region, remove them from the maps and stop the countdown
         if (!playerInAnyRegion && currentRegion != null) {
             stopCountdown(playerId);
             playerRegionMap.remove(playerId);
             playerNotifiedMap.remove(playerId);
 
-            // Remove the player from the BossBar and hide it if no players are left
             BossBar bossBar = currentRegion.getBossBar();
             bossBar.removePlayer(player);
             if (bossBar.getPlayers().isEmpty()) {
                 bossBar.setVisible(false);
             }
 
-            player.sendMessage("You left the region. The countdown has been stopped.");
+            player.sendMessage("§c§l(!) §cYou left the extraction zone. Countdown stopped.");
         }
     }
 
-
-
     private void startCountdown(Player player, Region region) {
         UUID playerId = player.getUniqueId();
+
+        if (isSiteOpen) {
+            player.sendMessage("§c§l(!) §cThe extraction zone is already open.");
+            return;
+        }
+
+        if (region.isBlockBroken()) {
+            player.sendMessage("§c§l(!) §cThe extraction zone is already open.");
+            return;
+        }
+
+        playerTimers.put(playerId, region.getCountdownTime());
         BossBar bossBar = region.getBossBar();
-
-        // Reset the BossBar for a new countdown
-        bossBar.setTitle("Extraction Countdown");
-        bossBar.setColor(BarColor.RED);
-        bossBar.setProgress(1.0);
-        bossBar.addPlayer(player); // Add the player to the BossBar if not already added
+        bossBar.addPlayer(player);
         bossBar.setVisible(true);
-
-        // Launch a series of red fireworks to indicate the countdown start
-        region.launchFireworks(region.getCenter(), Color.RED, 5); // Launch 5 fireworks
+        region.launchFireworks(region.getCenter(), Color.RED, 5);
 
         BukkitRunnable countdown = new BukkitRunnable() {
-            int timeLeft = region.getCountdownTime();
-
             @Override
             public void run() {
-                if (timeLeft <= 0) {
-                    region.breakAndPlaceBlock(); // Call the method to break the block and handle the BossBar
-                    player.sendMessage("You have successfully stayed within the region for 2 minutes. The block has been broken and will be placed back in 30 seconds!");
+                if (isSiteOpen) {
+                    bossBar.setTitle("Extraction Site Open");
+                    bossBar.setColor(BarColor.GREEN);
+                    bossBar.setProgress(1.0);
+                    return;
+                }
 
-                    // Update the BossBar to indicate the extraction site is open
+                int timeLeft = playerTimers.get(playerId) - 1;
+                playerTimers.put(playerId, timeLeft);
+
+                UUID lowestTimerPlayer = getPlayerWithLowestTimer();
+                if (lowestTimerPlayer != null && lowestTimerPlayer.equals(playerId)) {
+                    bossBar.setTitle("Extraction Countdown: " + timeLeft + " seconds");
+                    bossBar.setProgress(timeLeft / (double) region.getCountdownTime());
+                }
+
+                if (timeLeft <= 0) {
+                    isSiteOpen = true;
+                    region.breakBlock();
+
+                    for (UUID uuid : playerRegionMap.keySet()) {
+                        if (playerRegionMap.get(uuid).equals(region)) {
+                            Player regionPlayer = Bukkit.getPlayer(uuid);
+                            if (regionPlayer != null) {
+                                regionPlayer.sendMessage("§a§l(!) §aThe extraction site is now open!");
+                            }
+                        }
+                    }
+
                     bossBar.setTitle("Extraction Site Open");
                     bossBar.setColor(BarColor.GREEN);
                     bossBar.setProgress(1.0);
 
-                    this.cancel();
-                } else {
-                    // Update BossBar progress
-                    double progress = timeLeft / (double) region.getCountdownTime();
-                    bossBar.setProgress(progress);
-                    bossBar.setTitle("Extraction Countdown: " + timeLeft + " seconds");
+                    // No need to call another delay here as it’s handled in placeBlockBack
+                    region.placeBlockBack();
 
-                    timeLeft--;
+                    this.cancel();
                 }
             }
         };
 
-        countdown.runTaskTimer(this, 0, 20); // Schedule task to run every second (20 ticks)
+        countdown.runTaskTimer(this, 0, 20);
         activeCountdowns.put(playerId, countdown);
     }
 
 
+    private void updateBossBarsForAllPlayers(Region region) {
+        UUID lowestTimerPlayer = getPlayerWithLowestTimer();
+        BossBar bossBar = region.getBossBar();
+
+        if (lowestTimerPlayer != null) {
+            Player lowestTimerPlayerEntity = Bukkit.getPlayer(lowestTimerPlayer);
+            if (lowestTimerPlayerEntity != null) {
+                bossBar.setTitle("Extraction Countdown: " + playerTimers.get(lowestTimerPlayer) + " seconds");
+                bossBar.setProgress(playerTimers.get(lowestTimerPlayer) / (double) region.getCountdownTime());
+
+                for (UUID uuid : playerRegionMap.keySet()) {
+                    if (playerRegionMap.get(uuid).equals(region)) {
+                        Player regionPlayer = Bukkit.getPlayer(uuid);
+                        if (regionPlayer != null) {
+                            bossBar.addPlayer(regionPlayer);
+                        }
+                    }
+                }
+                bossBar.setVisible(true);
+            }
+        } else {
+            bossBar.setVisible(false);
+        }
+    }
+
+    private UUID getPlayerWithLowestTimer() {
+        return playerTimers.entrySet()
+                .stream()
+                .min(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
 
     private void stopCountdown(UUID playerId) {
         if (activeCountdowns.containsKey(playerId)) {
             activeCountdowns.get(playerId).cancel();
             activeCountdowns.remove(playerId);
         }
+
+        Region region = playerRegionMap.get(playerId);
+        if (region != null) {
+            BossBar bossBar = region.getBossBar();
+            bossBar.removePlayer(Bukkit.getPlayer(playerId));
+
+            if (isSiteOpen) {
+                bossBar.setTitle("Extraction Site Open");
+                bossBar.setColor(BarColor.GREEN);
+                bossBar.setProgress(1.0);
+                bossBar.setVisible(true);
+            } else {
+                UUID lowestTimerPlayer = getPlayerWithLowestTimer();
+                if (lowestTimerPlayer != null) {
+                    Player lowestTimerPlayerEntity = Bukkit.getPlayer(lowestTimerPlayer);
+                    if (lowestTimerPlayerEntity != null) {
+                        bossBar.addPlayer(lowestTimerPlayerEntity);
+                        bossBar.setTitle("Extraction Countdown: " + playerTimers.get(lowestTimerPlayer) + " seconds");
+                        bossBar.setProgress(playerTimers.get(lowestTimerPlayer) / (double) region.getCountdownTime());
+                    }
+                } else {
+                    bossBar.setVisible(false);
+                }
+            }
+        }
+    }
+
+    public void resetExtractionSite() {
+        isSiteOpen = false;
     }
 
     public static class Region {
+        private final UUID worldUUID;
         private final Location center;
         private final int radius;
         private final int countdownTime;
         private final Material blockMaterial;
-        private final JavaPlugin plugin;
+        private final myPlugins plugin;
         private boolean blockBroken = false;
-        private BossBar bossBar;
+        private final BossBar bossBar;
 
-        public Region(Location center, int radius, int countdownTime, Material blockMaterial, JavaPlugin plugin) {
+        public Region(UUID worldUUID, Location center, int radius, int countdownTime, Material blockMaterial, myPlugins plugin) {
             this.center = center;
+            this.worldUUID = worldUUID;
             this.radius = radius;
             this.countdownTime = countdownTime;
             this.blockMaterial = blockMaterial;
@@ -186,7 +270,9 @@ public final class myPlugins extends JavaPlugin implements Listener {
 
         public boolean isPlayerInRegion(Player player) {
             Location loc = player.getLocation();
-            return Math.abs(loc.getX() - center.getX()) <= radius && Math.abs(loc.getZ() - center.getZ()) <= radius;
+            return loc.getWorld().getUID().equals(worldUUID) &&
+                    Math.abs(loc.getX() - center.getX()) <= radius &&
+                    Math.abs(loc.getZ() - center.getZ()) <= radius;
         }
 
         public int getCountdownTime() {
@@ -205,42 +291,63 @@ public final class myPlugins extends JavaPlugin implements Listener {
             return bossBar;
         }
 
-        public void breakAndPlaceBlock() {
+        public void breakBlock() {
             Block centerBlock = center.getBlock();
 
-            // Break the block
-            centerBlock.setType(Material.AIR);
-            blockBroken = true; // Mark the block as broken
+            if (!blockBroken && centerBlock.getType() != Material.AIR) {
+                centerBlock.setType(Material.AIR);
+                blockBroken = true;
+                launchFireworks(center, Color.GREEN, 5);
 
-            // Update the BossBar to indicate the extraction site is open
-            bossBar.setTitle("Extraction Site Open");
-            bossBar.setColor(BarColor.GREEN);
-            bossBar.setProgress(1.0);
-            bossBar.setVisible(true);
+                plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to AIR.");
+            }
+        }
 
-            // Debugging output to ensure this code is running
-            plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to AIR.");
-
-            // Schedule to place the block back after 30 seconds
+        public void placeBlockBack() {
             new BukkitRunnable() {
                 @Override
                 public void run() {
-                    // Re-fetch the block at the location to ensure we are working with the correct reference
                     Block blockToPlace = center.getBlock();
-                    blockToPlace.setType(blockMaterial); // Place the block back with the specified material
-                    blockBroken = false; // Mark the block as restored
+                    blockToPlace.setType(blockMaterial);
+                    blockBroken = false;
 
-                    // Reset the BossBar for the next countdown
-                    bossBar.setTitle("Extraction Countdown");
-                    bossBar.setColor(BarColor.RED);
-                    bossBar.setProgress(1.0);
-                    bossBar.setVisible(false);
+                    plugin.resetExtractionSite();
+                    updateBossBarsForAllPlayers();
 
-                    // Debugging output to confirm block placement
+                    // Check if any players are in the region when the block is placed back
+                    for (UUID playerId : plugin.playerRegionMap.keySet()) {
+                        Player player = Bukkit.getPlayer(playerId);
+                        if (player != null && isPlayerInRegion(player)) {
+                            // Restart the countdown for the player in the region
+                            plugin.startCountdown(player, Region.this);
+                            player.sendMessage("§c§l(!) §cExtraction zone closed. Timer has been reset.");
+
+                        }
+                    }
+
                     plugin.getLogger().info("Block at " + center.getX() + ", " + center.getY() + ", " + center.getZ() + " set to " + blockMaterial.name() + ".");
                 }
-            }.runTaskLater(plugin, 600L); // 600 ticks = 30 seconds
+            }.runTaskLater(plugin, 600L);
         }
+
+
+
+
+        private void updateBossBarsForAllPlayers() {
+            UUID lowestTimerPlayer = plugin.getPlayerWithLowestTimer();
+            if (lowestTimerPlayer != null) {
+                Player lowestTimerPlayerEntity = Bukkit.getPlayer(lowestTimerPlayer);
+                if (lowestTimerPlayerEntity != null) {
+                    bossBar.setTitle("Extraction Countdown: " + plugin.playerTimers.get(lowestTimerPlayer) + " seconds");
+                    bossBar.setProgress(plugin.playerTimers.get(lowestTimerPlayer) / (double) countdownTime);
+                    bossBar.setVisible(true);
+                }
+            } else {
+                bossBar.setVisible(false);
+            }
+        }
+
+
 
         public void launchFireworks(Location location, Color color, int count) {
             for (int i = 0; i < count; i++) {
@@ -251,7 +358,6 @@ public final class myPlugins extends JavaPlugin implements Listener {
                         Firework firework = fireworkLocation.getWorld().spawn(fireworkLocation, Firework.class);
                         FireworkMeta meta = firework.getFireworkMeta();
 
-                        // Add multiple effects to the firework
                         for (int j = 0; j < 5; j++) {
                             meta.addEffect(FireworkEffect.builder()
                                     .withColor(color)
@@ -261,13 +367,15 @@ public final class myPlugins extends JavaPlugin implements Listener {
                                     .build());
                         }
 
-                        meta.setPower(2); // Increase the power to make the firework shoot higher
+                        meta.setPower(2);
                         firework.setFireworkMeta(meta);
                     }
-                }.runTaskLater(plugin, i * 10L); // Delay each firework by 10 ticks
+                }.runTaskLater(plugin, i * 10L);
             }
         }
     }
+
+
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
@@ -277,171 +385,130 @@ public final class myPlugins extends JavaPlugin implements Listener {
 
         if ((event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) && item != null && item.getType() == Material.SUGAR_CANE) {
             ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§7Tear Gas")) {
-                event.setCancelled(true); // Cancel any default behavior
+            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§7§lTear §7Gas")) {
+                event.setCancelled(true);
 
-                // Launch the Tear Gas (throw it)
                 Item thrownItem = player.getWorld().dropItem(player.getEyeLocation(), item);
                 thrownItem.setVelocity(player.getLocation().getDirection().multiply(1.5));
                 thrownItem.getPersistentDataContainer().set(tearGasKey, PersistentDataType.BYTE, (byte) 1);
 
-                // Remove one Tear Gas from the player's hand
-                item.setAmount(item.getAmount() - 1);
-                if (item.getAmount() <= 0) {
-                    player.getInventory().setItemInMainHand(null);
-                }
+                item.setAmount(1);
 
-                // Prevent the item from being picked up by any player
-                thrownItem.setPickupDelay(Integer.MAX_VALUE);
-
-                // Schedule to trigger the effect after a short delay
                 new BukkitRunnable() {
                     @Override
                     public void run() {
                         if (!thrownItem.isDead()) {
                             triggerTearGasEffect(thrownItem);
-                            thrownItem.remove(); // Remove the item entity after the effect
+                            thrownItem.remove();
                         }
                     }
-                }.runTaskLater(this, 20L); // 20 ticks = 1 second
+                }.runTaskLater(this, 20L);
             }
         }
 
-        // Check if the player right-clicked (either on block or air)
         if ((action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) && item != null && item.getType() == Material.SUGAR) {
             ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§a§lBooger Sugar")) {
-                // Apply Speed II effect for 5 seconds (100 ticks)
+            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§a§lBooger §aSugar")) {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 50, 1));
 
-                // Remove one Booger Sugar from the player's hand
                 item.setAmount(item.getAmount() - 1);
 
-                // If the item stack is now empty, remove it from the inventory
                 if (item.getAmount() <= 0) {
                     player.getInventory().setItemInMainHand(null);
                 }
-                player.sendMessage("§aYou feel a surge of adrenaline");
+                player.sendMessage("§a§l(!) §aYou feel a surge of adrenaline");
 
-
-                // Cancel the event to prevent any default action (like placing a block)
                 event.setCancelled(true);
             }
         }
 
         if ((event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) && item != null && item.getType() == Material.REDSTONE) {
             ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§c§lDamage Amplifier")) {
-
-                // Apply Strength I effect for 15 seconds (300 ticks)
+            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§c§lDamage §cAmplifier")) {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.INCREASE_DAMAGE, 300, 0));
 
-                // Remove one Damage Amplifier from the player's hand
                 item.setAmount(item.getAmount() - 1);
 
-                // If the item stack is now empty, remove it from the inventory
                 if (item.getAmount() <= 0) {
                     player.getInventory().setItemInMainHand(null);
                 }
 
-                player.sendMessage("You feel a surge of strength!");
+                player.sendMessage("§a§l(!) §aYou feel a surge of strength!");
 
-                // Cancel the event to prevent any default action
                 event.setCancelled(true);
             }
         }
 
-        // Check if the player right-clicked and is holding the Piggy Launcher
         if ((event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) && item != null && item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
             if (meta.getPersistentDataContainer().has(piggyLauncherKey, PersistentDataType.BYTE)) {
                 UUID playerId = player.getUniqueId();
 
-                // Check if the player is on cooldown
                 if (cooldowns.containsKey(playerId)) {
                     long timeSinceLastUse = System.currentTimeMillis() - cooldowns.get(playerId);
                     if (timeSinceLastUse < cooldownTime) {
                         long timeLeft = (cooldownTime - timeSinceLastUse) / 1000;
-                        player.sendMessage("You must wait " + timeLeft + " more seconds before using the Piggy Launcher again!");
+                        player.sendMessage("§c§l(!)§cYou must wait " + timeLeft + " §cmore seconds before using the Piggy Launcher again!");
                         event.setCancelled(true);
                         return;
                     }
                 }
 
-                // Handle usage count
                 int usageCount = meta.getPersistentDataContainer().getOrDefault(usageKey, PersistentDataType.INTEGER, 0);
                 usageCount++;
 
                 if (usageCount >= maxUses) {
-                    // Break the bow after max uses
                     player.getInventory().setItemInMainHand(null);
-                    player.sendMessage("Your Piggy Launcher broke!");
+                    player.sendMessage("§a§l(!) §aYour Piggy Launcher broke!");
                 } else {
-                    // Update the usage count
                     meta.getPersistentDataContainer().set(usageKey, PersistentDataType.INTEGER, usageCount);
                     item.setItemMeta(meta);
                 }
 
-                // Launch the pig immediately
-                event.setCancelled(true); // Cancel default bow usage
+                event.setCancelled(true);
                 Pig pig = (Pig) player.getWorld().spawnEntity(player.getLocation().add(0, 1.5, 0), EntityType.PIG);
                 pig.setVelocity(player.getLocation().getDirection().multiply(2));
                 pig.getPersistentDataContainer().set(piggyLauncherKey, PersistentDataType.BYTE, (byte) 1);
-                player.sendMessage("Pig launched!");
 
-                // Apply the cooldown
                 cooldowns.put(playerId, System.currentTimeMillis());
 
-                // Schedule a task to check for collision with the environment
                 new BukkitRunnable() {
                     @Override
                     public void run() {
                         if (pig.isOnGround() || pig.getVelocity().length() < 0.1) {
                             pig.getWorld().createExplosion(pig.getLocation(), 4.0F, false, false);
                             pig.remove();
-                            getLogger().info("Pig exploded!");
-                            this.cancel();  // Stop the task
+                            this.cancel();
                         }
                     }
-                }.runTaskTimer(this, 0L, 1L);  // Run every tick
+                }.runTaskTimer(this, 0L, 1L);
             }
         }
-        if ((event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) && item != null && item.getType() == Material.REDSTONE_TORCH) {
+        if ((action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) && item != null && item.getType() == Material.REDSTONE_TORCH) {
             ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§cMolotov")) {
-                event.setCancelled(true); // Cancel any default behavior
+            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§c§lMolotov")) {
+                event.setCancelled(true);
 
-                // Launch the Molotov (throw it)
                 Item thrownItem = player.getWorld().dropItem(player.getEyeLocation(), item);
                 thrownItem.setVelocity(player.getLocation().getDirection().multiply(1.5));
                 thrownItem.getPersistentDataContainer().set(molotovKey, PersistentDataType.BYTE, (byte) 1);
 
                 thrownItem.setPickupDelay(Integer.MAX_VALUE);
 
-                // Remove one Molotov from the player's hand
-                item.setAmount(item.getAmount() - 1);
-                if (item.getAmount() <= 0) {
-                    player.getInventory().setItemInMainHand(null);
-                }
+                item.setAmount(1);
 
-                // Schedule to trigger the fire effect after a short delay
                 new BukkitRunnable() {
                     @Override
                     public void run() {
                         if (!thrownItem.isDead()) {
-                            igniteArea(thrownItem.getLocation(), 2); // 4-block radius
-                            thrownItem.remove(); // Remove the item entity after the effect
+                            igniteArea(thrownItem.getLocation(), 2);
+                            thrownItem.remove();
                         }
                     }
-                }.runTaskLater(this, 20L); // 20 ticks = 1 second
+                }.runTaskLater(this, 20L);
             }
         }
-
-
-
-
     }
-
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -451,7 +518,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
 
                 ItemStack piggyLauncher = new ItemStack(Material.BOW, 1);
                 ItemMeta meta = piggyLauncher.getItemMeta();
-                meta.setDisplayName("§d§lPiggy Launcher");
+                meta.setDisplayName("§d§lPiggy §dLauncher");
                 meta.getPersistentDataContainer().set(piggyLauncherKey, PersistentDataType.BYTE, (byte) 1);
                 piggyLauncher.setItemMeta(meta);
 
@@ -474,7 +541,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
                 }
                 ItemStack boogerSugar = new ItemStack(Material.SUGAR, 1);
                 ItemMeta meta = boogerSugar.getItemMeta();
-                meta.setDisplayName("§a§lBooger Sugar");
+                meta.setDisplayName("§a§lBooger §aSugar");
                 boogerSugar.setItemMeta(meta);
 
                 player.getInventory().addItem(boogerSugar);
@@ -492,7 +559,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
 
                 ItemStack damageAmplifier = new ItemStack(Material.REDSTONE, 1);
                 ItemMeta meta = damageAmplifier.getItemMeta();
-                meta.setDisplayName("§c§lDamage Amplifier");
+                meta.setDisplayName("§c§lDamage §cAmplifier");
                 damageAmplifier.setItemMeta(meta);
 
                 player.getInventory().addItem(damageAmplifier);
@@ -510,7 +577,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
 
                 ItemStack tearGas = new ItemStack(Material.SUGAR_CANE, 1);
                 ItemMeta meta = tearGas.getItemMeta();
-                meta.setDisplayName("§7Tear Gas");
+                meta.setDisplayName("§7§lTear §7Gas");
                 tearGas.setItemMeta(meta);
 
                 player.getInventory().addItem(tearGas);
@@ -528,7 +595,7 @@ public final class myPlugins extends JavaPlugin implements Listener {
 
                 ItemStack molotov = new ItemStack(Material.REDSTONE_TORCH, 1);
                 ItemMeta meta = molotov.getItemMeta();
-                meta.setDisplayName("§cMolotov");
+                meta.setDisplayName("§c§lMolotov");
                 molotov.setItemMeta(meta);
 
                 player.getInventory().addItem(molotov);
@@ -540,41 +607,35 @@ public final class myPlugins extends JavaPlugin implements Listener {
             }
         }
 
-
-
-
         return false;
     }
 
     private void triggerTearGasEffect(Item item) {
-        // Create a harmless explosion at the item's location
         item.getWorld().createExplosion(item.getLocation(), 0F, false, false);
 
-        // Apply nausea effect to nearby players
         List<Player> players = item.getWorld().getPlayers();
         for (Player player : players) {
-            if (player.getLocation().distance(item.getLocation()) <= 5) { // Radius of 5 blocks
-                player.addPotionEffect(new PotionEffect(PotionEffectType.CONFUSION, 200, 5)); // Nausea for 3 seconds (60 ticks)
-                player.sendMessage("You've been hit by Tear Gas!");
+            if (player.getLocation().distance(item.getLocation()) <= 5) {
+                player.addPotionEffect(new PotionEffect(PotionEffectType.CONFUSION, 200, 5));
+                player.sendMessage("§c§l(!) §cYou've been hit by Tear Gas!");
             }
         }
     }
+
     @EventHandler
     public void onPlayerPickupItem(PlayerPickupItemEvent event) {
         Item item = event.getItem();
         ItemMeta meta = item.getItemStack().getItemMeta();
 
-        // Prevent pickup of Tear Gas item
-        if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§7Tear Gas")) {
+        if (meta != null && meta.hasDisplayName() && meta.getDisplayName().equals("§7§lTear §7Gas")) {
             event.setCancelled(true);
-            item.remove(); // Remove the item immediately if somehow picked up
+            item.remove();
         }
     }
 
     private void igniteArea(Location location, int radius) {
         World world = location.getWorld();
 
-        // Ignite the blocks in a square around the location
         for (int x = -radius; x <= radius; x++) {
             for (int z = -radius; z <= radius; z++) {
                 Location fireLocation = location.clone().add(x, 0, z);
@@ -583,7 +644,6 @@ public final class myPlugins extends JavaPlugin implements Listener {
                 }
             }
         }
-        // Schedule to extinguish the fire after 10 seconds
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -596,15 +656,6 @@ public final class myPlugins extends JavaPlugin implements Listener {
                     }
                 }
             }
-        }.runTaskLater(this, 200L); // 200 ticks = 10 seconds
-
-
-
-
+        }.runTaskLater(this, 200L);
     }
 }
-
-
-
-
-
